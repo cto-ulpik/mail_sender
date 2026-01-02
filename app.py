@@ -10,6 +10,7 @@ import io
 import re
 import time
 import threading
+from urllib.parse import quote, unquote
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -63,7 +64,7 @@ def get_smtp_connection():
 
 
 def add_tracking(html_content, tracking_token):
-    """Agrega pixel de tracking para aperturas (los links NO se modifican)"""
+    """Agrega pixel de tracking para aperturas y modifica links para tracking de clics"""
     base_url = Config.BASE_URL
     
     # Agregar pixel de tracking antes del cierre de </body>
@@ -79,7 +80,34 @@ def add_tracking(html_content, tracking_token):
     else:
         html_content += tracking_pixel
     
-    # Los links ya NO se modifican - se mantienen tal como están en el HTML original
+    # Modificar todos los enlaces <a href="..."> para que pasen por el tracking
+    def replace_link(match):
+        original_tag = match.group(0)
+        # El grupo 2 es el URL en href="url"
+        url = match.group(2) if match.lastindex >= 2 else ''
+        
+        if not url:
+            return original_tag
+        
+        # No modificar enlaces que ya sean de tracking o enlaces javascript/mailto/data
+        if '/track/' in url or url.startswith(('javascript:', 'mailto:', '#', 'data:', 'vbscript:')):
+            return original_tag
+        
+        # Crear URL de tracking
+        encoded_url = quote(url, safe='')
+        tracking_url = f"{base_url}/track/click/{tracking_token}?url={encoded_url}"
+        
+        # Reemplazar el href en el tag
+        return original_tag.replace(f'href="{url}"', f'href="{tracking_url}"').replace(f"href='{url}'", f"href='{tracking_url}'")
+    
+    # Buscar y reemplazar todos los enlaces <a href="...">
+    # Patrón mejorado para capturar href con comillas simples o dobles
+    html_content = re.sub(
+        r'<a\s+([^>]*\s+)?href=(["\'])([^"\']+)\2([^>]*)>',
+        replace_link,
+        html_content,
+        flags=re.IGNORECASE
+    )
     
     return html_content
 
@@ -465,12 +493,19 @@ def track_click(tracking_token):
     """Registrar clic en link"""
     recipient = Recipient.query.filter_by(tracking_token=tracking_token).first()
     
-    if recipient and not recipient.clicked_at:
+    if recipient:
+        # Registrar el clic (aunque ya haya hecho clic antes, actualizamos la fecha)
         recipient.clicked_at = datetime.utcnow()
         db.session.commit()
     
     # Redirigir al URL original
     original_url = request.args.get('url', '/')
+    original_url = unquote(original_url)
+    
+    # Validar que la URL sea segura (no javascript: ni data:)
+    if original_url.startswith(('javascript:', 'data:', 'vbscript:')):
+        original_url = '/'
+    
     return redirect(original_url)
 
 
