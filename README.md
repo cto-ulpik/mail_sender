@@ -71,7 +71,7 @@ La base de datos se crea automáticamente al ejecutar la aplicación por primera
 python3 app.py
 ```
 
-La aplicación estará disponible en: `http://localhost:5001`
+La aplicación estará disponible en: `http://localhost:5010`
 
 #### Producción:
 
@@ -79,7 +79,7 @@ Para producción, se recomienda usar un servidor WSGI como Gunicorn:
 
 ```bash
 pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:5001 app:app
+gunicorn -w 4 -b 0.0.0.0:5010 app:app
 ```
 
 ## 📝 Cómo obtener credenciales SMTP de Amazon SES
@@ -183,7 +183,7 @@ BASE_URL=https://mails.ulpik.com
 ### Despliegue con Gunicorn
 
 ```bash
-gunicorn -w 4 -b 0.0.0.0:5001 --timeout 120 app:app
+gunicorn -w 4 -b 0.0.0.0:5010 --timeout 120 app:app
 ```
 
 ### Despliegue con systemd (Linux)
@@ -199,7 +199,7 @@ After=network.target
 User=www-data
 WorkingDirectory=/ruta/a/mail_sender
 Environment="PATH=/ruta/a/mail_sender/venv/bin"
-ExecStart=/ruta/a/mail_sender/venv/bin/gunicorn -w 4 -b 0.0.0.0:5001 app:app
+ExecStart=/ruta/a/mail_sender/venv/bin/gunicorn -w 4 -b 0.0.0.0:5010 app:app
 Restart=always
 
 [Install]
