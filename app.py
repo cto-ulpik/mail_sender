@@ -80,14 +80,20 @@ def add_tracking(html_content, tracking_token):
     else:
         html_content += tracking_pixel
     
+    # Debug: contar enlaces antes de modificar
+    links_before = len(re.findall(r'<a\s+[^>]*href\s*=\s*["\']?[^"\'>\s]+["\']?[^>]*>', html_content, re.IGNORECASE))
+    
     # Modificar todos los enlaces <a href="..."> para que pasen por el tracking
     def replace_link(match):
         original_tag = match.group(0)
-        # El grupo 2 es el URL en href="url"
-        url = match.group(2) if match.lastindex >= 2 else ''
+        # El grupo 3 es el URL (después de href=" o href=')
+        url = match.group(3) if match.lastindex >= 3 else ''
         
         if not url:
             return original_tag
+        
+        # Limpiar el URL de espacios
+        url = url.strip()
         
         # No modificar enlaces que ya sean de tracking o enlaces javascript/mailto/data
         if '/track/' in url or url.startswith(('javascript:', 'mailto:', '#', 'data:', 'vbscript:')):
@@ -97,17 +103,55 @@ def add_tracking(html_content, tracking_token):
         encoded_url = quote(url, safe='')
         tracking_url = f"{base_url}/track/click/{tracking_token}?url={encoded_url}"
         
-        # Reemplazar el href en el tag
-        return original_tag.replace(f'href="{url}"', f'href="{tracking_url}"').replace(f"href='{url}'", f"href='{tracking_url}'")
+        # Reemplazar el href en el tag (manejar comillas simples y dobles)
+        quote_char = match.group(2)  # La comilla usada (simple o doble)
+        return original_tag.replace(f'href={quote_char}{url}{quote_char}', f'href={quote_char}{tracking_url}{quote_char}')
     
     # Buscar y reemplazar todos los enlaces <a href="...">
-    # Patrón mejorado para capturar href con comillas simples o dobles
+    # Patrón mejorado para capturar href con comillas simples o dobles, y manejar espacios
+    # Patrón: <a ... href=["'](url)["'] ...>
     html_content = re.sub(
-        r'<a\s+([^>]*\s+)?href=(["\'])([^"\']+)\2([^>]*)>',
+        r'<a\s+([^>]*\s+)?href\s*=\s*(["\'])([^"\']+)\2([^>]*)>',
         replace_link,
         html_content,
         flags=re.IGNORECASE
     )
+    
+    # También buscar enlaces sin comillas (menos común pero posible)
+    def replace_link_no_quotes(match):
+        original_tag = match.group(0)
+        url = match.group(2) if match.lastindex >= 2 else ''
+        
+        if not url:
+            return original_tag
+        
+        url = url.strip()
+        
+        # No modificar enlaces que ya sean de tracking o enlaces especiales
+        if '/track/' in url or url.startswith(('javascript:', 'mailto:', '#', 'data:', 'vbscript:')):
+            return original_tag
+        
+        # Crear URL de tracking
+        encoded_url = quote(url, safe='')
+        tracking_url = f"{base_url}/track/click/{tracking_token}?url={encoded_url}"
+        
+        # Reemplazar el href
+        return original_tag.replace(f'href={url}', f'href="{tracking_url}"')
+    
+    # Buscar enlaces sin comillas (href=url sin comillas)
+    html_content = re.sub(
+        r'<a\s+([^>]*\s+)?href\s*=\s*([^\s>]+)([^>]*)>',
+        replace_link_no_quotes,
+        html_content,
+        flags=re.IGNORECASE
+    )
+    
+    # Debug: contar enlaces después de modificar
+    links_after = len(re.findall(r'/track/click/', html_content))
+    
+    # Log para debugging (solo en desarrollo)
+    if app.debug:
+        print(f"Tracking: {links_before} enlaces encontrados, {links_after} enlaces modificados")
     
     return html_content
 
