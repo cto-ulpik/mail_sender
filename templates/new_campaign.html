@@ -35,8 +35,33 @@
             </div>
             
             <div class="form-group">
-                <label class="form-label">Contenido HTML del email</label>
-                <textarea class="form-textarea" id="campaignContent" placeholder="Pega aquí el código HTML de tu email..." required></textarea>
+                <label class="form-label">Contenido del email</label>
+                
+                <!-- Selector de modo de edición -->
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border);">
+                    <button type="button" class="editor-mode-btn active" data-mode="visual" onclick="switchEditorMode('visual')">
+                        ✏️ Editor Gráfico
+                    </button>
+                    <button type="button" class="editor-mode-btn" data-mode="html" onclick="switchEditorMode('html')">
+                        🔧 HTML Directo
+                    </button>
+                </div>
+                
+                <!-- Editor Gráfico (Quill) -->
+                <div id="visualEditorContainer" style="display: block;">
+                    <div id="visualEditor" style="background: white; min-height: 400px; border-radius: 10px;"></div>
+                    <small style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.5rem; display: block;">
+                        Usa el editor gráfico para formatear tu email de forma visual
+                    </small>
+                </div>
+                
+                <!-- Editor HTML -->
+                <div id="htmlEditorContainer" style="display: none;">
+                    <textarea class="form-textarea" id="campaignContent" placeholder="Pega aquí el código HTML de tu email..." style="font-family: 'Courier New', monospace; font-size: 0.9rem;"></textarea>
+                    <small style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.5rem; display: block;">
+                        Edita el código HTML directamente
+                    </small>
+                </div>
             </div>
             
             <button type="button" class="btn btn-primary" onclick="createCampaign()">
@@ -132,10 +157,128 @@ pedro@ejemplo.com,Pedro López</pre>
 {% endblock %}
 
 {% block scripts %}
+<style>
+    .editor-mode-btn {
+        padding: 0.5rem 1rem;
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        font-family: inherit;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+        margin-bottom: -1px;
+    }
+    
+    .editor-mode-btn:hover {
+        color: var(--text-primary);
+    }
+    
+    .editor-mode-btn.active {
+        color: var(--accent-secondary);
+        border-bottom-color: var(--accent-primary);
+    }
+    
+    #visualEditor .ql-editor {
+        min-height: 400px;
+        color: #333;
+        font-size: 16px;
+    }
+    
+    #visualEditor .ql-container {
+        border-bottom-left-radius: 10px;
+        border-bottom-right-radius: 10px;
+    }
+    
+    #visualEditor .ql-toolbar {
+        border-top-left-radius: 10px;
+        border-top-right-radius: 10px;
+        background: #f8f9fa;
+    }
+</style>
 <script>
     let campaignId = null;
     let recipientsCount = 0;
     let senders = [];
+    let quillEditor = null;
+    let currentEditorMode = 'visual';
+
+    // Inicializar editor Quill
+    function initQuillEditor() {
+        quillEditor = new Quill('#visualEditor', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'align': [] }],
+                    ['link', 'image'],
+                    ['clean']
+                ]
+            },
+            placeholder: 'Escribe el contenido de tu email aquí...'
+        });
+        
+        // Sincronizar contenido cuando cambia el editor visual
+        quillEditor.on('text-change', function() {
+            syncVisualToHTML();
+        });
+    }
+
+    // Cambiar entre modos de edición
+    function switchEditorMode(mode) {
+        currentEditorMode = mode;
+        
+        // Actualizar botones
+        document.querySelectorAll('.editor-mode-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset.mode === mode) {
+                btn.classList.add('active');
+            }
+        });
+        
+        if (mode === 'visual') {
+            document.getElementById('visualEditorContainer').style.display = 'block';
+            document.getElementById('htmlEditorContainer').style.display = 'none';
+            
+            // Sincronizar HTML a Visual si hay contenido
+            syncHTMLToVisual();
+        } else {
+            document.getElementById('visualEditorContainer').style.display = 'none';
+            document.getElementById('htmlEditorContainer').style.display = 'block';
+            
+            // Sincronizar Visual a HTML
+            syncVisualToHTML();
+        }
+    }
+
+    // Sincronizar contenido del editor visual al textarea HTML
+    function syncVisualToHTML() {
+        if (quillEditor) {
+            const htmlContent = quillEditor.root.innerHTML;
+            document.getElementById('campaignContent').value = htmlContent;
+        }
+    }
+
+    // Sincronizar contenido del textarea HTML al editor visual
+    function syncHTMLToVisual() {
+        const htmlContent = document.getElementById('campaignContent').value;
+        if (quillEditor && htmlContent) {
+            quillEditor.root.innerHTML = htmlContent;
+        }
+    }
+
+    // Obtener contenido HTML final
+    function getEmailContent() {
+        if (currentEditorMode === 'visual') {
+            syncVisualToHTML();
+        }
+        return document.getElementById('campaignContent').value;
+    }
 
     // Cargar remitentes disponibles al cargar la página
     async function loadSenders() {
@@ -158,8 +301,11 @@ pedro@ejemplo.com,Pedro López</pre>
         }
     }
 
-    // Cargar remitentes al iniciar
-    loadSenders();
+    // Inicializar al cargar la página
+    document.addEventListener('DOMContentLoaded', function() {
+        initQuillEditor();
+        loadSenders();
+    });
 
     // File upload handling
     const dropZone = document.getElementById('dropZone');
@@ -216,13 +362,22 @@ pedro@ejemplo.com,Pedro López</pre>
     async function createCampaign() {
         const name = document.getElementById('campaignName').value;
         const subject = document.getElementById('campaignSubject').value;
-        const content = document.getElementById('campaignContent').value;
+        const content = getEmailContent(); // Usar función que obtiene el contenido según el modo
         const senderSelect = document.getElementById('campaignSender');
         const selectedSenderId = senderSelect.value;
 
         if (!name || !subject || !content || !selectedSenderId) {
             showToast('Por favor completa todos los campos', 'error');
             return;
+        }
+
+        // Validar que el contenido no esté vacío
+        if (currentEditorMode === 'visual') {
+            const text = quillEditor.getText().trim();
+            if (!text) {
+                showToast('Por favor agrega contenido al email', 'error');
+                return;
+            }
         }
 
         // Obtener datos del remitente seleccionado
@@ -290,7 +445,8 @@ pedro@ejemplo.com,Pedro López</pre>
                 
                 // Update preview
                 const previewFrame = document.getElementById('previewFrame');
-                previewFrame.srcdoc = document.getElementById('campaignContent').value;
+                const content = getEmailContent();
+                previewFrame.srcdoc = content;
                 
                 goToStep(3);
             } else {
