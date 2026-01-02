@@ -57,11 +57,14 @@
                 
                 <!-- Editor HTML -->
                 <div id="htmlEditorContainer" style="display: none;">
-                    <textarea class="form-textarea" id="campaignContent" placeholder="Pega aquí el código HTML de tu email..." style="font-family: 'Courier New', monospace; font-size: 0.9rem;"></textarea>
+                    <textarea class="form-textarea" id="campaignContent" placeholder="Pega aquí el código HTML de tu email..." style="font-family: 'Courier New', monospace; font-size: 0.9rem;" required></textarea>
                     <small style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.5rem; display: block;">
                         Edita el código HTML directamente
                     </small>
                 </div>
+                
+                <!-- Textarea oculto para sincronización cuando se usa editor visual (siempre presente) -->
+                <textarea id="campaignContentHidden" style="display: none;"></textarea>
             </div>
             
             <button type="button" class="btn btn-primary" onclick="createCampaign()">
@@ -256,28 +259,62 @@ pedro@ejemplo.com,Pedro López</pre>
         }
     }
 
+    // Obtener el textarea activo según el modo
+    function getActiveTextarea() {
+        if (currentEditorMode === 'html') {
+            return document.getElementById('campaignContent');
+        } else {
+            return document.getElementById('campaignContentHidden');
+        }
+    }
+
     // Sincronizar contenido del editor visual al textarea HTML
     function syncVisualToHTML() {
         if (quillEditor) {
             const htmlContent = quillEditor.root.innerHTML;
-            document.getElementById('campaignContent').value = htmlContent;
+            const textarea = getActiveTextarea();
+            if (textarea) {
+                textarea.value = htmlContent;
+            }
         }
     }
 
     // Sincronizar contenido del textarea HTML al editor visual
     function syncHTMLToVisual() {
-        const htmlContent = document.getElementById('campaignContent').value;
-        if (quillEditor && htmlContent) {
-            quillEditor.root.innerHTML = htmlContent;
+        const textarea = document.getElementById('campaignContent');
+        if (textarea && quillEditor) {
+            const htmlContent = textarea.value;
+            if (htmlContent) {
+                quillEditor.root.innerHTML = htmlContent;
+            }
         }
     }
 
     // Obtener contenido HTML final
     function getEmailContent() {
+        let content = '';
+        
         if (currentEditorMode === 'visual') {
-            syncVisualToHTML();
+            // Si estamos en modo visual, obtener del editor Quill
+            if (quillEditor) {
+                content = quillEditor.root.innerHTML;
+                // Sincronizar al textarea oculto
+                const textarea = document.getElementById('campaignContentHidden');
+                if (textarea) {
+                    textarea.value = content;
+                }
+            } else {
+                // Fallback al textarea oculto si Quill no está disponible
+                const textarea = document.getElementById('campaignContentHidden');
+                content = textarea ? textarea.value : '';
+            }
+        } else {
+            // Si estamos en modo HTML, obtener directamente del textarea visible
+            const textarea = document.getElementById('campaignContent');
+            content = textarea ? textarea.value : '';
         }
-        return document.getElementById('campaignContent').value;
+        
+        return content || '';
     }
 
     // Cargar remitentes disponibles al cargar la página
@@ -360,22 +397,52 @@ pedro@ejemplo.com,Pedro López</pre>
     }
 
     async function createCampaign() {
-        const name = document.getElementById('campaignName').value;
-        const subject = document.getElementById('campaignSubject').value;
-        const content = getEmailContent(); // Usar función que obtiene el contenido según el modo
+        const name = document.getElementById('campaignName').value.trim();
+        const subject = document.getElementById('campaignSubject').value.trim();
         const senderSelect = document.getElementById('campaignSender');
-        const selectedSenderId = senderSelect.value;
+        const selectedSenderId = senderSelect ? senderSelect.value : '';
 
-        if (!name || !subject || !content || !selectedSenderId) {
-            showToast('Por favor completa todos los campos', 'error');
+        // Validaciones básicas
+        if (!name) {
+            showToast('Por favor ingresa un nombre para la campaña', 'error');
             return;
         }
 
-        // Validar que el contenido no esté vacío
+        if (!subject) {
+            showToast('Por favor ingresa un asunto para el email', 'error');
+            return;
+        }
+
+        if (!selectedSenderId) {
+            showToast('Por favor selecciona un remitente', 'error');
+            return;
+        }
+
+        // Validar contenido según el modo
+        let content = '';
         if (currentEditorMode === 'visual') {
+            if (!quillEditor) {
+                showToast('El editor no está inicializado. Por favor recarga la página.', 'error');
+                return;
+            }
+            
             const text = quillEditor.getText().trim();
             if (!text) {
                 showToast('Por favor agrega contenido al email', 'error');
+                return;
+            }
+            
+            content = quillEditor.root.innerHTML;
+            // Validar que el HTML no esté vacío (solo tags sin contenido)
+            if (!content || content.trim() === '<p><br></p>' || content.trim() === '<p></p>') {
+                showToast('Por favor agrega contenido al email', 'error');
+                return;
+            }
+        } else {
+            const textarea = document.getElementById('campaignContent');
+            content = textarea ? textarea.value.trim() : '';
+            if (!content) {
+                showToast('Por favor agrega contenido HTML al email', 'error');
                 return;
             }
         }
@@ -384,6 +451,21 @@ pedro@ejemplo.com,Pedro López</pre>
         const selectedOption = senderSelect.options[senderSelect.selectedIndex];
         const senderEmail = selectedOption.getAttribute('data-email');
         const senderName = selectedOption.getAttribute('data-name');
+
+        if (!senderEmail || !senderName) {
+            showToast('Error al obtener datos del remitente', 'error');
+            return;
+        }
+
+        // Sincronizar contenido al textarea antes de enviar (para ambos modos)
+        const textareaVisible = document.getElementById('campaignContent');
+        const textareaHidden = document.getElementById('campaignContentHidden');
+        if (textareaVisible) {
+            textareaVisible.value = content;
+        }
+        if (textareaHidden) {
+            textareaHidden.value = content;
+        }
 
         try {
             const response = await fetch('/api/campaigns', {
@@ -398,16 +480,20 @@ pedro@ejemplo.com,Pedro López</pre>
                 })
             });
 
+            const data = await response.json();
+
             if (response.ok) {
-                const campaign = await response.json();
-                campaignId = campaign.id;
+                campaignId = data.id;
                 goToStep(2);
-                showToast('Campaña creada', 'success');
+                showToast('Campaña creada exitosamente', 'success');
             } else {
-                throw new Error('Error al crear campaña');
+                const errorMsg = data.error || data.message || 'Error al crear campaña';
+                showToast(errorMsg, 'error');
+                console.error('Error al crear campaña:', data);
             }
         } catch (error) {
-            showToast('Error al crear la campaña', 'error');
+            console.error('Error al crear la campaña:', error);
+            showToast('Error de conexión al crear la campaña. Por favor intenta de nuevo.', 'error');
         }
     }
 
