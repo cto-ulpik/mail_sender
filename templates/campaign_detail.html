@@ -1,0 +1,570 @@
+{% extends "base.html" %}
+
+{% block title %}Detalles de Campaña - SES Mailer{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+        <a href="/" style="color: var(--text-muted); text-decoration: none; font-size: 0.875rem;">← Volver al dashboard</a>
+        <h1 class="page-title" id="campaignName" style="margin-top: 0.5rem;">Cargando...</h1>
+        <p class="page-subtitle" id="campaignSubject"></p>
+    </div>
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <div id="campaignStatus"></div>
+        <button id="stopBtn" class="btn btn-danger" onclick="stopSending()" style="display: none;">
+            ⏹ Detener envío
+        </button>
+        <button id="retryBtn" class="btn btn-warning" onclick="retryFailed()" style="display: none;">
+            🔄 Reintentar fallidos
+        </button>
+        <button id="resumeBtn" class="btn btn-success" onclick="resumeSending()" style="display: none;">
+            ▶ Reanudar envío
+        </button>
+    </div>
+</div>
+
+<!-- Resumen de Destinatarios -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">👥 Total Destinatarios</div>
+        <div class="stat-value accent" id="totalRecipients">-</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">✅ Enviados</div>
+        <div class="stat-value success" id="totalSent">-</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">❌ Fallidos</div>
+        <div class="stat-value danger" id="totalFailed">-</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">📅 Fecha de Envío</div>
+        <div class="stat-value" id="sentAt" style="font-size: 1rem;">-</div>
+    </div>
+</div>
+
+<!-- Estadísticas de Engagement -->
+<div class="card">
+    <h3 style="margin-bottom: 1.5rem;">📊 Estadísticas de Engagement</h3>
+    
+    <div class="engagement-grid">
+        <div class="engagement-card opened">
+            <div class="engagement-icon">👁</div>
+            <div class="engagement-info">
+                <div class="engagement-label">Aperturas</div>
+                <div class="engagement-value" id="totalOpened">0</div>
+                <div class="engagement-rate" id="openRate">0% de los enviados</div>
+            </div>
+            <div class="engagement-progress">
+                <div class="engagement-progress-fill" id="openProgress" style="width: 0%;"></div>
+            </div>
+        </div>
+        
+        <div class="engagement-card clicked">
+            <div class="engagement-icon">🖱</div>
+            <div class="engagement-info">
+                <div class="engagement-label">Clics</div>
+                <div class="engagement-value" id="totalClicked">0</div>
+                <div class="engagement-rate" id="clickRate">0% de los enviados</div>
+            </div>
+            <div class="engagement-progress">
+                <div class="engagement-progress-fill" id="clickProgress" style="width: 0%;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Desglose de Destinatarios -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">📋 Desglose de Destinatarios</h3>
+        <button class="btn btn-secondary btn-sm" onclick="toggleDetails()">
+            <span id="toggleText">Ver detalle</span>
+        </button>
+    </div>
+    
+    <div class="recipients-summary">
+        <div class="summary-item">
+            <div class="summary-icon success">✓</div>
+            <div class="summary-info">
+                <div class="summary-label">Enviados exitosamente</div>
+                <div class="summary-count" id="sentCount">0 destinatarios</div>
+            </div>
+        </div>
+        
+        <div class="summary-item">
+            <div class="summary-icon info">👁</div>
+            <div class="summary-info">
+                <div class="summary-label">Abrieron el email</div>
+                <div class="summary-count" id="openedCount">0 destinatarios</div>
+            </div>
+        </div>
+        
+        <div class="summary-item">
+            <div class="summary-icon warning">🖱</div>
+            <div class="summary-info">
+                <div class="summary-label">Hicieron clic</div>
+                <div class="summary-count" id="clickedCount">0 destinatarios</div>
+            </div>
+        </div>
+        
+        <div class="summary-item">
+            <div class="summary-icon danger">✕</div>
+            <div class="summary-info">
+                <div class="summary-label">Envío fallido</div>
+                <div class="summary-count" id="failedCount">0 destinatarios</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tabla detallada (oculta por defecto) -->
+    <div id="detailsSection" style="display: none; margin-top: 1.5rem; border-top: 1px solid var(--border); padding-top: 1.5rem;">
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+            <button class="btn btn-sm btn-secondary filter-btn active" data-filter="all">Todos</button>
+            <button class="btn btn-sm btn-secondary filter-btn" data-filter="sent">Enviados</button>
+            <button class="btn btn-sm btn-secondary filter-btn" data-filter="opened">Abiertos</button>
+            <button class="btn btn-sm btn-secondary filter-btn" data-filter="clicked">Con clics</button>
+            <button class="btn btn-sm btn-secondary filter-btn" data-filter="failed">Fallidos</button>
+        </div>
+        
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Nombre</th>
+                        <th>Estado</th>
+                        <th>Abierto</th>
+                        <th>Clic</th>
+                    </tr>
+                </thead>
+                <tbody id="recipientsBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Email Preview -->
+<div class="card">
+    <h3 style="margin-bottom: 1rem;">👁 Vista previa del email</h3>
+    <div style="background: white; border-radius: 10px; overflow: hidden;">
+        <iframe id="emailPreview" style="width: 100%; height: 400px; border: none;"></iframe>
+    </div>
+</div>
+
+<style>
+    .engagement-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+    }
+    
+    .engagement-card {
+        background: var(--bg-secondary);
+        border-radius: 16px;
+        padding: 1.5rem;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 1rem;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .engagement-card.opened { border-left: 4px solid var(--success); }
+    .engagement-card.clicked { border-left: 4px solid var(--warning); }
+    
+    .engagement-icon {
+        font-size: 2.5rem;
+    }
+    
+    .engagement-info {
+        flex: 1;
+    }
+    
+    .engagement-label {
+        color: var(--text-muted);
+        font-size: 0.875rem;
+    }
+    
+    .engagement-value {
+        font-size: 2rem;
+        font-weight: 700;
+    }
+    
+    .engagement-card.opened .engagement-value { color: var(--success); }
+    .engagement-card.clicked .engagement-value { color: var(--warning); }
+    
+    .engagement-rate {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+    
+    .engagement-progress {
+        width: 100%;
+        height: 6px;
+        background: var(--bg-card);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    
+    .engagement-progress-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.5s ease;
+    }
+    
+    .engagement-card.opened .engagement-progress-fill { background: var(--success); }
+    .engagement-card.clicked .engagement-progress-fill { background: var(--warning); }
+    
+    .recipients-summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+    
+    .summary-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: var(--bg-secondary);
+        border-radius: 12px;
+    }
+    
+    .summary-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    
+    .summary-icon.success { background: rgba(34, 197, 94, 0.15); }
+    .summary-icon.info { background: rgba(99, 102, 241, 0.15); }
+    .summary-icon.warning { background: rgba(245, 158, 11, 0.15); }
+    .summary-icon.danger { background: rgba(239, 68, 68, 0.15); }
+    
+    .summary-label {
+        font-size: 0.875rem;
+        color: var(--text-muted);
+    }
+    
+    .summary-count {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    
+    .filter-btn.active {
+        background: var(--accent-primary);
+        border-color: var(--accent-primary);
+    }
+    
+    .stat-value.danger { color: var(--danger); }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const campaignId = '{{ campaign_id }}';
+    let allRecipients = [];
+    let showDetails = false;
+
+    async function loadCampaign() {
+        try {
+            const response = await fetch(`/api/campaigns/${campaignId}`);
+            if (!response.ok) throw new Error('Campaña no encontrada');
+            
+            const campaign = await response.json();
+            
+            // Update header
+            document.getElementById('campaignName').textContent = campaign.name;
+            document.getElementById('campaignSubject').textContent = campaign.subject;
+            
+            // Status badge
+            document.getElementById('campaignStatus').innerHTML = `
+                <span class="badge badge-${getStatusClass(campaign.status)}">
+                    ${getStatusText(campaign.status)}
+                </span>
+            `;
+            
+            // Stats
+            document.getElementById('totalRecipients').textContent = campaign.total_recipients;
+            document.getElementById('totalSent').textContent = campaign.total_sent;
+            document.getElementById('sentAt').textContent = formatDate(campaign.sent_at);
+            
+            // Engagement
+            document.getElementById('totalOpened').textContent = campaign.total_opened;
+            document.getElementById('totalClicked').textContent = campaign.total_clicked;
+            document.getElementById('openRate').textContent = `${campaign.open_rate}% de los enviados`;
+            document.getElementById('clickRate').textContent = `${campaign.click_rate}% de los enviados`;
+            document.getElementById('openProgress').style.width = `${Math.min(campaign.open_rate, 100)}%`;
+            document.getElementById('clickProgress').style.width = `${Math.min(campaign.click_rate, 100)}%`;
+            
+            // Email preview
+            document.getElementById('emailPreview').srcdoc = campaign.html_content;
+            
+            // Controlar botones según estado
+            const stopBtn = document.getElementById('stopBtn');
+            const retryBtn = document.getElementById('retryBtn');
+            const resumeBtn = document.getElementById('resumeBtn');
+            
+            if (campaign.status === 'sending') {
+                stopBtn.style.display = 'inline-flex';
+                retryBtn.style.display = 'none';
+                resumeBtn.style.display = 'none';
+                startProgressRefresh();
+            } else {
+                stopBtn.style.display = 'none';
+                stopProgressRefresh();
+                
+                // Verificar si hay pendientes para reanudar
+                const pending = campaign.total_recipients - campaign.total_sent - (await getPendingErrors());
+                if (campaign.status === 'stopped' && pending > 0) {
+                    resumeBtn.style.display = 'inline-flex';
+                    resumeBtn.textContent = `▶ Reanudar (${pending} pendientes)`;
+                } else {
+                    resumeBtn.style.display = 'none';
+                }
+            }
+            
+        } catch (error) {
+            showToast('Error al cargar la campaña', 'error');
+            setTimeout(() => window.location.href = '/', 2000);
+        }
+    }
+    
+    async function getPendingErrors() {
+        // Contar errores desde allRecipients
+        return allRecipients.filter(r => r.error_message).length;
+    }
+
+    async function loadRecipients() {
+        try {
+            const response = await fetch(`/api/campaigns/${campaignId}/recipients`);
+            allRecipients = await response.json();
+            
+            // Calcular conteos
+            const sent = allRecipients.filter(r => r.sent).length;
+            const opened = allRecipients.filter(r => r.opened_at).length;
+            const clicked = allRecipients.filter(r => r.clicked_at).length;
+            const failed = allRecipients.filter(r => r.error_message).length;
+            
+            // Actualizar resumen
+            document.getElementById('sentCount').textContent = `${sent} destinatarios`;
+            document.getElementById('openedCount').textContent = `${opened} destinatarios`;
+            document.getElementById('clickedCount').textContent = `${clicked} destinatarios`;
+            document.getElementById('failedCount').textContent = `${failed} destinatarios`;
+            document.getElementById('totalFailed').textContent = failed;
+            
+            // Mostrar/ocultar botón de reintentar (solo si no está enviando)
+            const retryBtn = document.getElementById('retryBtn');
+            const campaignResponse = await fetch(`/api/campaigns/${campaignId}`);
+            const campaignData = await campaignResponse.json();
+            
+            if (failed > 0 && campaignData.status !== 'sending') {
+                retryBtn.style.display = 'inline-flex';
+                retryBtn.disabled = false;
+                retryBtn.textContent = `🔄 Reintentar ${failed} fallidos`;
+            } else if (campaignData.status !== 'sending') {
+                retryBtn.style.display = 'none';
+            }
+            
+            renderRecipients(allRecipients);
+        } catch (error) {
+            console.error('Error loading recipients:', error);
+        }
+    }
+
+    function renderRecipients(recipients) {
+        const tbody = document.getElementById('recipientsBody');
+        
+        if (recipients.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No hay destinatarios</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = recipients.map(r => `
+            <tr>
+                <td><strong>${r.email}</strong></td>
+                <td>${r.name || '-'}</td>
+                <td>
+                    ${r.error_message 
+                        ? `<span class="badge badge-danger" title="${r.error_message}">Error</span>` 
+                        : r.sent 
+                            ? `<span class="badge badge-success">Enviado</span>` 
+                            : `<span class="badge badge-info">Pendiente</span>`
+                    }
+                </td>
+                <td>
+                    ${r.opened_at 
+                        ? `<span style="color: var(--success);">✓</span>` 
+                        : '<span style="color: var(--text-muted);">-</span>'
+                    }
+                </td>
+                <td>
+                    ${r.clicked_at 
+                        ? `<span style="color: var(--warning);">✓</span>` 
+                        : '<span style="color: var(--text-muted);">-</span>'
+                    }
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function toggleDetails() {
+        showDetails = !showDetails;
+        document.getElementById('detailsSection').style.display = showDetails ? 'block' : 'none';
+        document.getElementById('toggleText').textContent = showDetails ? 'Ocultar detalle' : 'Ver detalle';
+    }
+
+    // Filter buttons
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            const filter = this.dataset.filter;
+            let filtered = allRecipients;
+            
+            switch(filter) {
+                case 'sent':
+                    filtered = allRecipients.filter(r => r.sent);
+                    break;
+                case 'opened':
+                    filtered = allRecipients.filter(r => r.opened_at);
+                    break;
+                case 'clicked':
+                    filtered = allRecipients.filter(r => r.clicked_at);
+                    break;
+                case 'failed':
+                    filtered = allRecipients.filter(r => r.error_message);
+                    break;
+            }
+            
+            renderRecipients(filtered);
+        });
+    });
+
+    async function retryFailed() {
+        const retryBtn = document.getElementById('retryBtn');
+        retryBtn.disabled = true;
+        retryBtn.innerHTML = '<div class="spinner"></div> Iniciando...';
+        
+        try {
+            const response = await fetch(`/api/campaigns/${campaignId}/retry`, {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                showToast(data.message, 'success');
+                startProgressRefresh();
+            } else {
+                throw new Error(data.error || 'Error al reintentar');
+            }
+        } catch (error) {
+            showToast(error.message, 'error');
+            retryBtn.disabled = false;
+            retryBtn.innerHTML = '🔄 Reintentar fallidos';
+        }
+    }
+
+    async function stopSending() {
+        if (!confirm('¿Detener el envío? Podrás reanudarlo después.')) return;
+        
+        try {
+            const response = await fetch(`/api/campaigns/${campaignId}/stop`, {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                showToast(data.message, 'warning');
+                loadCampaign();
+                loadRecipients();
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    }
+
+    async function resumeSending() {
+        try {
+            const response = await fetch(`/api/campaigns/${campaignId}/send`, {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                showToast(data.message, 'success');
+                startProgressRefresh();
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    }
+
+    let progressInterval = null;
+    
+    function startProgressRefresh() {
+        // Refrescar cada 3 segundos mientras se envía
+        if (progressInterval) clearInterval(progressInterval);
+        progressInterval = setInterval(() => {
+            loadCampaign();
+            loadRecipients();
+        }, 3000);
+    }
+
+    function stopProgressRefresh() {
+        if (progressInterval) {
+            clearInterval(progressInterval);
+            progressInterval = null;
+        }
+    }
+
+    function getStatusClass(status) {
+        const classes = {
+            'draft': 'info',
+            'sending': 'warning',
+            'sent': 'success',
+            'sent_with_errors': 'warning',
+            'stopped': 'info',
+            'failed': 'danger'
+        };
+        return classes[status] || 'info';
+    }
+
+    function getStatusText(status) {
+        const texts = {
+            'draft': 'Borrador',
+            'sending': '⏳ Enviando...',
+            'sent': 'Enviado',
+            'sent_with_errors': 'Enviado con errores',
+            'stopped': '⏸ Detenido',
+            'failed': 'Fallido'
+        };
+        return texts[status] || status;
+    }
+
+    // Initialize
+    loadCampaign();
+    loadRecipients();
+    
+    // Auto-refresh every 30 seconds
+    setInterval(() => {
+        loadCampaign();
+        loadRecipients();
+    }, 30000);
+</script>
+{% endblock %}

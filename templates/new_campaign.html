@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+
+{% block title %}Nueva Campaña - SES Mailer{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Nueva Campaña</h1>
+    <p class="page-subtitle">Crea y envía una nueva campaña de email</p>
+</div>
+
+<div class="card">
+    <form id="campaignForm">
+        <!-- Step 1: Basic Info -->
+        <div id="step1">
+            <h3 style="margin-bottom: 1.5rem; color: var(--accent-secondary);">📝 Paso 1: Información básica</h3>
+            
+            <div class="form-group">
+                <label class="form-label">Nombre de la campaña</label>
+                <input type="text" class="form-input" id="campaignName" placeholder="Ej: Newsletter Diciembre 2024" required>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Asunto del email</label>
+                <input type="text" class="form-input" id="campaignSubject" placeholder="Ej: ¡Novedades de diciembre!" required>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Contenido HTML del email</label>
+                <textarea class="form-textarea" id="campaignContent" placeholder="Pega aquí el código HTML de tu email..." required></textarea>
+            </div>
+            
+            <button type="button" class="btn btn-primary" onclick="createCampaign()">
+                Continuar →
+            </button>
+        </div>
+
+        <!-- Step 2: Upload CSV -->
+        <div id="step2" style="display: none;">
+            <h3 style="margin-bottom: 1.5rem; color: var(--accent-secondary);">📋 Paso 2: Cargar destinatarios</h3>
+            
+            <div class="form-group">
+                <label class="form-label">Archivo CSV con emails</label>
+                <div class="file-upload" id="dropZone">
+                    <div class="file-upload-icon">📄</div>
+                    <p class="file-upload-text">
+                        Arrastra tu archivo CSV aquí o <strong>haz clic para seleccionar</strong>
+                    </p>
+                    <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.5rem;">
+                        El CSV debe tener columnas: email, name (opcional)
+                    </p>
+                    <input type="file" id="csvFile" accept=".csv" style="display: none;">
+                </div>
+                
+                <div id="fileInfo" style="display: none; margin-top: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 10px;">
+                    <span id="fileName"></span>
+                    <span id="recipientCount" style="color: var(--success); margin-left: 1rem;"></span>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 1rem;">
+                <button type="button" class="btn btn-secondary" onclick="goToStep(1)">
+                    ← Atrás
+                </button>
+                <button type="button" class="btn btn-primary" id="uploadBtn" onclick="uploadCSV()" disabled>
+                    Subir y continuar →
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 3: Preview & Send -->
+        <div id="step3" style="display: none;">
+            <h3 style="margin-bottom: 1.5rem; color: var(--accent-secondary);">🚀 Paso 3: Revisar y enviar</h3>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                <div style="padding: 1rem; background: var(--bg-secondary); border-radius: 10px;">
+                    <div style="color: var(--text-muted); font-size: 0.875rem;">Nombre</div>
+                    <div id="summaryName" style="font-weight: 600;"></div>
+                </div>
+                <div style="padding: 1rem; background: var(--bg-secondary); border-radius: 10px;">
+                    <div style="color: var(--text-muted); font-size: 0.875rem;">Asunto</div>
+                    <div id="summarySubject" style="font-weight: 600;"></div>
+                </div>
+                <div style="padding: 1rem; background: var(--bg-secondary); border-radius: 10px;">
+                    <div style="color: var(--text-muted); font-size: 0.875rem;">Destinatarios</div>
+                    <div id="summaryRecipients" style="font-weight: 600; color: var(--accent-secondary);"></div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Vista previa del email</label>
+                <div style="background: white; border-radius: 10px; overflow: hidden; max-height: 400px; overflow-y: auto;">
+                    <iframe id="previewFrame" style="width: 100%; height: 400px; border: none;"></iframe>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 1rem;">
+                <button type="button" class="btn btn-secondary" onclick="goToStep(2)">
+                    ← Atrás
+                </button>
+                <button type="button" class="btn btn-success" id="sendBtn" onclick="sendCampaign()">
+                    <span id="sendBtnText">📨 Enviar Campaña</span>
+                    <span id="sendBtnLoading" style="display: none;"><div class="spinner"></div> Enviando...</span>
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Example CSV Card -->
+<div class="card" style="margin-top: 1.5rem;">
+    <h3 style="margin-bottom: 1rem;">📝 Formato del CSV</h3>
+    <p style="color: var(--text-secondary); margin-bottom: 1rem;">Tu archivo CSV debe tener el siguiente formato:</p>
+    <pre style="background: var(--bg-secondary); padding: 1rem; border-radius: 10px; overflow-x: auto; color: var(--text-primary);">email,name
+juan@ejemplo.com,Juan Pérez
+maria@ejemplo.com,María García
+pedro@ejemplo.com,Pedro López</pre>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let campaignId = null;
+    let recipientsCount = 0;
+
+    // File upload handling
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('csvFile');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+    
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('dragover');
+    });
+    
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file && file.name.endsWith('.csv')) {
+            handleFile(file);
+        } else {
+            showToast('Por favor selecciona un archivo CSV', 'error');
+        }
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files[0]) {
+            handleFile(e.target.files[0]);
+        }
+    });
+
+    function handleFile(file) {
+        document.getElementById('fileName').textContent = `📄 ${file.name}`;
+        document.getElementById('fileInfo').style.display = 'block';
+        document.getElementById('uploadBtn').disabled = false;
+        
+        // Count lines (approximate recipient count)
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const lines = e.target.result.split('\n').filter(line => line.trim());
+            document.getElementById('recipientCount').textContent = `~${lines.length - 1} destinatarios`;
+        };
+        reader.readAsText(file);
+    }
+
+    function goToStep(step) {
+        document.getElementById('step1').style.display = step === 1 ? 'block' : 'none';
+        document.getElementById('step2').style.display = step === 2 ? 'block' : 'none';
+        document.getElementById('step3').style.display = step === 3 ? 'block' : 'none';
+    }
+
+    async function createCampaign() {
+        const name = document.getElementById('campaignName').value;
+        const subject = document.getElementById('campaignSubject').value;
+        const content = document.getElementById('campaignContent').value;
+
+        if (!name || !subject || !content) {
+            showToast('Por favor completa todos los campos', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/campaigns', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    subject,
+                    html_content: content
+                })
+            });
+
+            if (response.ok) {
+                const campaign = await response.json();
+                campaignId = campaign.id;
+                goToStep(2);
+                showToast('Campaña creada', 'success');
+            } else {
+                throw new Error('Error al crear campaña');
+            }
+        } catch (error) {
+            showToast('Error al crear la campaña', 'error');
+        }
+    }
+
+    async function uploadCSV() {
+        const fileInput = document.getElementById('csvFile');
+        if (!fileInput.files[0]) {
+            showToast('Por favor selecciona un archivo', 'error');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        try {
+            const response = await fetch(`/api/campaigns/${campaignId}/recipients`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            
+            if (response.ok) {
+                recipientsCount = data.count;
+                showToast(`${data.count} destinatarios agregados`, 'success');
+                
+                // Update summary
+                document.getElementById('summaryName').textContent = document.getElementById('campaignName').value;
+                document.getElementById('summarySubject').textContent = document.getElementById('campaignSubject').value;
+                document.getElementById('summaryRecipients').textContent = `${data.count} destinatarios`;
+                
+                // Update preview
+                const previewFrame = document.getElementById('previewFrame');
+                previewFrame.srcdoc = document.getElementById('campaignContent').value;
+                
+                goToStep(3);
+            } else {
+                throw new Error(data.error || 'Error al subir archivo');
+            }
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    }
+
+    async function sendCampaign() {
+        const sendBtn = document.getElementById('sendBtn');
+        const btnText = document.getElementById('sendBtnText');
+        const btnLoading = document.getElementById('sendBtnLoading');
+
+        if (!confirm(`¿Estás seguro de enviar esta campaña a ${recipientsCount} destinatarios?`)) {
+            return;
+        }
+
+        sendBtn.disabled = true;
+        btnText.style.display = 'none';
+        btnLoading.style.display = 'flex';
+
+        try {
+            const response = await fetch(`/api/campaigns/${campaignId}/send`, {
+                method: 'POST'
+            });
+
+            const data = await response.json();
+            
+            if (response.ok) {
+                showToast(data.message, 'success');
+                setTimeout(() => {
+                    window.location.href = `/campaign/${campaignId}`;
+                }, 1500);
+            } else {
+                throw new Error(data.error || 'Error al enviar');
+            }
+        } catch (error) {
+            showToast(error.message, 'error');
+            sendBtn.disabled = false;
+            btnText.style.display = 'inline';
+            btnLoading.style.display = 'none';
+        }
+    }
+</script>
+{% endblock %}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

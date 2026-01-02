@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - SES Mailer{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Dashboard</h1>
+    <p class="page-subtitle">Resumen de tus campañas de email</p>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid" id="statsGrid">
+    <div class="stat-card">
+        <div class="stat-label">Total Campañas</div>
+        <div class="stat-value accent" id="totalCampaigns">-</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Emails Enviados</div>
+        <div class="stat-value" id="totalSent">-</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Tasa de Apertura</div>
+        <div class="stat-value success" id="openRate">-</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Tasa de Clics</div>
+        <div class="stat-value warning" id="clickRate">-</div>
+    </div>
+</div>
+
+<!-- Campaigns -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">📧 Campañas</h2>
+        <a href="/campaign/new" class="btn btn-primary">
+            <span>+</span> Nueva Campaña
+        </a>
+    </div>
+    
+    <div id="campaignsContainer">
+        <div class="empty-state" id="emptyState" style="display: none;">
+            <div class="empty-state-icon">📭</div>
+            <div class="empty-state-title">No hay campañas</div>
+            <p>Crea tu primera campaña de email para comenzar</p>
+        </div>
+        
+        <div class="campaigns-grid" id="campaignsGrid"></div>
+    </div>
+</div>
+
+<style>
+    .campaigns-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 1.5rem;
+    }
+    
+    .campaign-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 1.5rem;
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .campaign-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 40px rgba(99, 102, 241, 0.15);
+        border-color: var(--accent-primary);
+    }
+    
+    .campaign-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+    
+    .campaign-name {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+    }
+    
+    .campaign-subject {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 200px;
+    }
+    
+    .campaign-recipients {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--bg-card);
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+    }
+    
+    .campaign-recipients-icon {
+        font-size: 1rem;
+    }
+    
+    .campaign-recipients-count {
+        font-weight: 600;
+        color: var(--accent-secondary);
+    }
+    
+    .campaign-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        margin: 1rem 0;
+        padding: 1rem 0;
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .campaign-stat {
+        text-align: center;
+    }
+    
+    .campaign-stat-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+    
+    .campaign-stat-value.success { color: var(--success); }
+    .campaign-stat-value.warning { color: var(--warning); }
+    .campaign-stat-value.danger { color: var(--danger); }
+    
+    .campaign-stat-label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .campaign-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 1rem;
+    }
+    
+    .campaign-date {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+    
+    .campaign-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .campaign-status-bar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+    
+    .campaign-status-bar.sent { background: var(--success); }
+    .campaign-status-bar.draft { background: var(--accent-primary); }
+    .campaign-status-bar.sending { background: var(--warning); }
+    .campaign-status-bar.sent_with_errors { background: var(--warning); }
+    .campaign-status-bar.failed { background: var(--danger); }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Load stats
+    async function loadStats() {
+        try {
+            const response = await fetch('/api/stats');
+            const stats = await response.json();
+            
+            document.getElementById('totalCampaigns').textContent = stats.total_campaigns;
+            document.getElementById('totalSent').textContent = stats.total_sent.toLocaleString();
+            document.getElementById('openRate').textContent = formatPercent(stats.global_open_rate);
+            document.getElementById('clickRate').textContent = formatPercent(stats.global_click_rate);
+        } catch (error) {
+            console.error('Error loading stats:', error);
+        }
+    }
+
+    // Load campaigns
+    async function loadCampaigns() {
+        try {
+            const response = await fetch('/api/campaigns');
+            const campaigns = await response.json();
+            
+            const grid = document.getElementById('campaignsGrid');
+            const empty = document.getElementById('emptyState');
+            
+            if (campaigns.length === 0) {
+                grid.style.display = 'none';
+                empty.style.display = 'block';
+                return;
+            }
+            
+            grid.style.display = 'grid';
+            empty.style.display = 'none';
+            
+            grid.innerHTML = campaigns.map(campaign => `
+                <div class="campaign-card" onclick="window.location='/campaign/${campaign.id}'">
+                    <div class="campaign-status-bar ${campaign.status}"></div>
+                    
+                    <div class="campaign-card-header">
+                        <div>
+                            <div class="campaign-name">${campaign.name}</div>
+                            <div class="campaign-subject">${campaign.subject}</div>
+                        </div>
+                        <div class="campaign-recipients">
+                            <span class="campaign-recipients-icon">👥</span>
+                            <span class="campaign-recipients-count">${campaign.total_recipients}</span>
+                            <span>destinatarios</span>
+                        </div>
+                    </div>
+                    
+                    <div class="campaign-stats">
+                        <div class="campaign-stat">
+                            <div class="campaign-stat-value">${campaign.total_sent}</div>
+                            <div class="campaign-stat-label">Enviados</div>
+                        </div>
+                        <div class="campaign-stat">
+                            <div class="campaign-stat-value success">${campaign.open_rate}%</div>
+                            <div class="campaign-stat-label">Aperturas</div>
+                        </div>
+                        <div class="campaign-stat">
+                            <div class="campaign-stat-value warning">${campaign.click_rate}%</div>
+                            <div class="campaign-stat-label">Clics</div>
+                        </div>
+                    </div>
+                    
+                    <div class="campaign-footer">
+                        <div class="campaign-date">
+                            📅 ${campaign.sent_at ? formatDate(campaign.sent_at) : 'Sin enviar'}
+                        </div>
+                        <div class="campaign-actions">
+                            <span class="badge badge-${getStatusClass(campaign.status)}">
+                                ${getStatusText(campaign.status)}
+                            </span>
+                            <button onclick="event.stopPropagation(); deleteCampaign('${campaign.id}')" class="btn btn-danger btn-sm">🗑</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        } catch (error) {
+            console.error('Error loading campaigns:', error);
+        }
+    }
+
+    function getStatusClass(status) {
+        const classes = {
+            'draft': 'info',
+            'sending': 'warning',
+            'sent': 'success',
+            'sent_with_errors': 'warning',
+            'stopped': 'info',
+            'failed': 'danger'
+        };
+        return classes[status] || 'info';
+    }
+
+    function getStatusText(status) {
+        const texts = {
+            'draft': 'Borrador',
+            'sending': '⏳ Enviando...',
+            'sent': 'Enviado',
+            'sent_with_errors': 'Con errores',
+            'stopped': '⏸ Detenido',
+            'failed': 'Fallido'
+        };
+        return texts[status] || status;
+    }
+
+    async function deleteCampaign(id) {
+        if (!confirm('¿Estás seguro de eliminar esta campaña?')) return;
+        
+        try {
+            const response = await fetch(`/api/campaigns/${id}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                showToast('Campaña eliminada', 'success');
+                loadCampaigns();
+                loadStats();
+            } else {
+                throw new Error('Error al eliminar');
+            }
+        } catch (error) {
+            showToast('Error al eliminar la campaña', 'error');
+        }
+    }
+
+    // Initialize
+    loadStats();
+    loadCampaigns();
+</script>
+{% endblock %}
