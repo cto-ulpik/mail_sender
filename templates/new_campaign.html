@@ -290,6 +290,19 @@ pedro@ejemplo.com,Pedro López</pre>
         }
     }
 
+    // Limpiar y normalizar contenido HTML
+    function cleanHTMLContent(html) {
+        if (!html) return '';
+        
+        // Remover caracteres de control que pueden causar problemas
+        html = html.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+        
+        // Asegurar que el HTML esté bien formado
+        html = html.trim();
+        
+        return html;
+    }
+
     // Obtener contenido HTML final
     function getEmailContent() {
         let content = '';
@@ -298,6 +311,8 @@ pedro@ejemplo.com,Pedro López</pre>
             // Si estamos en modo visual, obtener del editor Quill
             if (quillEditor) {
                 content = quillEditor.root.innerHTML;
+                // Limpiar el contenido
+                content = cleanHTMLContent(content);
                 // Sincronizar al textarea oculto
                 const textarea = document.getElementById('campaignContentHidden');
                 if (textarea) {
@@ -306,12 +321,12 @@ pedro@ejemplo.com,Pedro López</pre>
             } else {
                 // Fallback al textarea oculto si Quill no está disponible
                 const textarea = document.getElementById('campaignContentHidden');
-                content = textarea ? textarea.value : '';
+                content = textarea ? cleanHTMLContent(textarea.value) : '';
             }
         } else {
             // Si estamos en modo HTML, obtener directamente del textarea visible
             const textarea = document.getElementById('campaignContent');
-            content = textarea ? textarea.value : '';
+            content = textarea ? cleanHTMLContent(textarea.value) : '';
         }
         
         return content || '';
@@ -467,20 +482,47 @@ pedro@ejemplo.com,Pedro López</pre>
             textareaHidden.value = content;
         }
 
+        // Preparar datos para enviar
+        const campaignData = {
+            name: name,
+            subject: subject,
+            html_content: content,
+            sender_email: senderEmail,
+            sender_name: senderName
+        };
+
+        // Validar que el JSON se puede serializar
+        let jsonBody;
+        try {
+            jsonBody = JSON.stringify(campaignData);
+        } catch (jsonError) {
+            console.error('Error al serializar JSON:', jsonError);
+            showToast('Error al preparar los datos. El contenido puede tener caracteres inválidos.', 'error');
+            return;
+        }
+
         try {
             const response = await fetch('/api/campaigns', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name,
-                    subject,
-                    html_content: content,
-                    sender_email: senderEmail,
-                    sender_name: senderName
-                })
+                headers: { 
+                    'Content-Type': 'application/json; charset=utf-8'
+                },
+                body: jsonBody
             });
 
-            const data = await response.json();
+            let data;
+            try {
+                const responseText = await response.text();
+                if (responseText) {
+                    data = JSON.parse(responseText);
+                } else {
+                    data = {};
+                }
+            } catch (parseError) {
+                console.error('Error al parsear respuesta:', parseError);
+                showToast('Error al procesar la respuesta del servidor', 'error');
+                return;
+            }
 
             if (response.ok) {
                 campaignId = data.id;
