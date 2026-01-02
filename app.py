@@ -137,20 +137,42 @@ def get_campaign_recipients(campaign_id):
 @app.route('/api/campaigns', methods=['POST'])
 def create_campaign():
     """Crear nueva campaña"""
-    data = request.json
+    try:
+        if not request.is_json:
+            return jsonify({'error': 'Content-Type debe ser application/json'}), 400
+        
+        data = request.json
+        if not data:
+            return jsonify({'error': 'No se recibieron datos'}), 400
+        
+        # Validar campos requeridos
+        if not data.get('name'):
+            return jsonify({'error': 'El nombre de la campaña es requerido'}), 400
+        
+        if not data.get('subject'):
+            return jsonify({'error': 'El asunto es requerido'}), 400
+        
+        if not data.get('html_content'):
+            return jsonify({'error': 'El contenido HTML es requerido'}), 400
+        
+        campaign = Campaign(
+            name=data.get('name', 'Sin nombre'),
+            subject=data.get('subject', ''),
+            html_content=data.get('html_content', ''),
+            sender_email=data.get('sender_email'),
+            sender_name=data.get('sender_name')
+        )
+        
+        db.session.add(campaign)
+        db.session.commit()
+        
+        return jsonify(campaign.to_dict()), 201
     
-    campaign = Campaign(
-        name=data.get('name', 'Sin nombre'),
-        subject=data.get('subject', ''),
-        html_content=data.get('html_content', ''),
-        sender_email=data.get('sender_email'),
-        sender_name=data.get('sender_name')
-    )
-    
-    db.session.add(campaign)
-    db.session.commit()
-    
-    return jsonify(campaign.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        error_msg = str(e)
+        print(f"Error al crear campaña: {error_msg}")
+        return jsonify({'error': f'Error al crear la campaña: {error_msg}'}), 500
 
 
 @app.route('/api/campaigns/<campaign_id>/recipients', methods=['POST'])

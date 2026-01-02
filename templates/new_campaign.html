@@ -510,32 +510,65 @@ pedro@ejemplo.com,Pedro López</pre>
                 body: jsonBody
             });
 
-            let data;
+            // Obtener el texto de la respuesta primero
+            const responseText = await response.text();
+            
+            let data = {};
+            
+            // Verificar si la respuesta es JSON o HTML (error)
+            if (responseText.trim().startsWith('<')) {
+                // Es HTML, probablemente una página de error
+                console.error('El servidor devolvió HTML en lugar de JSON:', responseText.substring(0, 200));
+                showToast('Error del servidor. Por favor verifica los logs o contacta al administrador.', 'error');
+                
+                // Intentar extraer información del error si es posible
+                const errorMatch = responseText.match(/<title>(.*?)<\/title>/i) || 
+                                  responseText.match(/<h1>(.*?)<\/h1>/i) ||
+                                  responseText.match(/Error:?\s*(.*?)(?:\n|<)/i);
+                
+                if (errorMatch) {
+                    console.error('Error detectado:', errorMatch[1]);
+                }
+                
+                return;
+            }
+            
+            // Intentar parsear como JSON
             try {
-                const responseText = await response.text();
-                if (responseText) {
+                if (responseText.trim()) {
                     data = JSON.parse(responseText);
-                } else {
-                    data = {};
                 }
             } catch (parseError) {
-                console.error('Error al parsear respuesta:', parseError);
-                showToast('Error al procesar la respuesta del servidor', 'error');
+                console.error('Error al parsear respuesta JSON:', parseError);
+                console.error('Respuesta recibida:', responseText.substring(0, 500));
+                showToast('Error al procesar la respuesta del servidor. Ver consola para más detalles.', 'error');
                 return;
             }
 
+            // Verificar el status de la respuesta
             if (response.ok) {
-                campaignId = data.id;
-                goToStep(2);
-                showToast('Campaña creada exitosamente', 'success');
+                if (data && data.id) {
+                    campaignId = data.id;
+                    goToStep(2);
+                    showToast('Campaña creada exitosamente', 'success');
+                } else {
+                    console.error('Respuesta exitosa pero sin ID de campaña:', data);
+                    showToast('Error: La campaña se creó pero no se recibió el ID. Por favor recarga la página.', 'error');
+                }
             } else {
-                const errorMsg = data.error || data.message || 'Error al crear campaña';
+                // Error del servidor
+                const errorMsg = data.error || data.message || `Error ${response.status}: ${response.statusText}`;
                 showToast(errorMsg, 'error');
-                console.error('Error al crear campaña:', data);
+                console.error('Error al crear campaña:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: data,
+                    responseText: responseText.substring(0, 500)
+                });
             }
         } catch (error) {
-            console.error('Error al crear la campaña:', error);
-            showToast('Error de conexión al crear la campaña. Por favor intenta de nuevo.', 'error');
+            console.error('Error de red al crear la campaña:', error);
+            showToast('Error de conexión al crear la campaña. Por favor verifica tu conexión e intenta de nuevo.', 'error');
         }
     }
 
