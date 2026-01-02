@@ -15,6 +15,8 @@ class Campaign(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     sent_at = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.String(20), default='draft')  # draft, sending, sent, failed
+    sender_email = db.Column(db.String(320), nullable=True)  # Email del remitente usado
+    sender_name = db.Column(db.String(200), nullable=True)  # Nombre del remitente usado
     
     # Relationships
     recipients = db.relationship('Recipient', backref='campaign', lazy=True, cascade='all, delete-orphan')
@@ -52,6 +54,8 @@ class Campaign(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'sent_at': self.sent_at.isoformat() if self.sent_at else None,
             'status': self.status,
+            'sender_email': self.sender_email,
+            'sender_name': self.sender_name,
             'total_recipients': len(self.recipients),
             'total_sent': self.total_sent,
             'total_opened': self.total_opened,

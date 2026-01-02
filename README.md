@@ -52,6 +52,10 @@ SES_SMTP_PASSWORD=TU_SMTP_PASSWORD
 SENDER_EMAIL=tu-email-verificado@dominio.com
 SENDER_NAME=Tu Nombre o Empresa
 
+# Remitente 2 (opcional)
+SENDER2_EMAIL=churchill@ulpik.com
+SENDER2_NAME=Churchill de Ulpik
+
 # Configuración de la aplicación
 SECRET_KEY=una-clave-secreta-segura-y-aleatoria
 BASE_URL=https://mails.ulpik.com
@@ -214,16 +218,29 @@ sudo systemctl enable mail-sender
 sudo systemctl start mail-sender
 ```
 
+## 🔄 Migración de Base de Datos
+
+Si actualizas desde una versión anterior, necesitas ejecutar la migración para agregar los campos de remitente:
+
+```bash
+cd /var/www/html/mail_sender
+source venv/bin/activate
+python3 migrate_add_sender_fields.py
+```
+
+Esto agregará las columnas `sender_email` y `sender_name` a la tabla `campaigns` si no existen.
+
 ## ⚠️ Notas importantes
 
-1. **Verificación de email**: El email remitente debe estar verificado en Amazon SES
-2. **Sandbox mode**: Si tu cuenta SES está en sandbox, solo podrás enviar a emails verificados. Solicita acceso de producción para enviar a cualquier email
-3. **Límites de envío**: Respeta los límites de envío de tu cuenta SES:
+1. **Verificación de email**: Todos los emails remitentes deben estar verificados en Amazon SES
+2. **Múltiples remitentes**: Puedes configurar múltiples remitentes en el archivo `.env`. Cada uno debe estar verificado en SES
+3. **Sandbox mode**: Si tu cuenta SES está en sandbox, solo podrás enviar a emails verificados. Solicita acceso de producción para enviar a cualquier email
+4. **Límites de envío**: Respeta los límites de envío de tu cuenta SES:
    - Sandbox: 200 emails/día, 1 email/segundo
    - Producción: Varía según tu plan
-4. **BASE_URL**: Debe apuntar al dominio donde esté desplegada la aplicación para que el tracking funcione correctamente
-5. **Base de datos**: La base de datos SQLite se crea automáticamente en la carpeta `instance/`. Para producción, considera usar PostgreSQL o MySQL
-6. **Seguridad**: Nunca subas el archivo `.env` al repositorio. Está incluido en `.gitignore`
+5. **BASE_URL**: Debe apuntar al dominio donde esté desplegada la aplicación para que el tracking funcione correctamente
+6. **Base de datos**: La base de datos SQLite se crea automáticamente en la carpeta `instance/`. Para producción, considera usar PostgreSQL o MySQL
+7. **Seguridad**: Nunca subas el archivo `.env` al repositorio. Está incluido en `.gitignore`
 
 ## 🛠 Estructura del proyecto
 

@@ -41,6 +41,10 @@
         <div class="stat-label">📅 Fecha de Envío</div>
         <div class="stat-value" id="sentAt" style="font-size: 1rem;">-</div>
     </div>
+    <div class="stat-card">
+        <div class="stat-label">📧 Remitente</div>
+        <div class="stat-value" id="senderInfo" style="font-size: 0.9rem;">-</div>
+    </div>
 </div>
 
 <!-- Estadísticas de Engagement -->
@@ -295,6 +299,13 @@
             document.getElementById('totalRecipients').textContent = campaign.total_recipients;
             document.getElementById('totalSent').textContent = campaign.total_sent;
             document.getElementById('sentAt').textContent = formatDate(campaign.sent_at);
+            
+            // Remitente
+            if (campaign.sender_email && campaign.sender_name) {
+                document.getElementById('senderInfo').textContent = `${campaign.sender_name} <${campaign.sender_email}>`;
+            } else {
+                document.getElementById('senderInfo').textContent = 'No especificado';
+            }
             
             // Engagement
             document.getElementById('totalOpened').textContent = campaign.total_opened;

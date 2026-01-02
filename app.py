@@ -23,10 +23,14 @@ with app.app_context():
 def send_email_smtp(recipient, campaign, smtp_connection=None):
     """Envía un email usando Amazon SES SMTP"""
     try:
+        # Obtener remitente de la campaña o usar el por defecto
+        sender_email = campaign.sender_email or Config.SENDER_EMAIL
+        sender_name = campaign.sender_name or Config.SENDER_NAME
+        
         # Crear mensaje
         msg = MIMEMultipart('alternative')
         msg['Subject'] = campaign.subject
-        msg['From'] = f"{Config.SENDER_NAME} <{Config.SENDER_EMAIL}>"
+        msg['From'] = f"{sender_name} <{sender_email}>"
         msg['To'] = recipient.email
         
         # Agregar pixel de tracking y modificar links
@@ -38,12 +42,12 @@ def send_email_smtp(recipient, campaign, smtp_connection=None):
         
         # Usar conexión existente o crear nueva
         if smtp_connection:
-            smtp_connection.sendmail(Config.SENDER_EMAIL, recipient.email, msg.as_string())
+            smtp_connection.sendmail(sender_email, recipient.email, msg.as_string())
         else:
             with smtplib.SMTP(Config.SES_SMTP_HOST, Config.SES_SMTP_PORT) as server:
                 server.starttls()
                 server.login(Config.SES_SMTP_USERNAME, Config.SES_SMTP_PASSWORD)
-                server.sendmail(Config.SENDER_EMAIL, recipient.email, msg.as_string())
+                server.sendmail(sender_email, recipient.email, msg.as_string())
         
         return True, None
     except Exception as e:
@@ -102,6 +106,13 @@ def view_campaign(campaign_id):
 
 # ============ API ENDPOINTS ============
 
+@app.route('/api/senders', methods=['GET'])
+def get_senders():
+    """Obtener lista de remitentes disponibles"""
+    senders = Config.get_senders()
+    return jsonify(senders)
+
+
 @app.route('/api/campaigns', methods=['GET'])
 def get_campaigns():
     """Obtener todas las campañas"""
@@ -131,7 +142,9 @@ def create_campaign():
     campaign = Campaign(
         name=data.get('name', 'Sin nombre'),
         subject=data.get('subject', ''),
-        html_content=data.get('html_content', '')
+        html_content=data.get('html_content', ''),
+        sender_email=data.get('sender_email'),
+        sender_name=data.get('sender_name')
     )
     
     db.session.add(campaign)

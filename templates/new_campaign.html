@@ -25,6 +25,16 @@
             </div>
             
             <div class="form-group">
+                <label class="form-label">Remitente</label>
+                <select class="form-input" id="campaignSender" required>
+                    <option value="">Selecciona un remitente...</option>
+                </select>
+                <small style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.5rem; display: block;">
+                    El email se enviará desde el remitente seleccionado
+                </small>
+            </div>
+            
+            <div class="form-group">
                 <label class="form-label">Contenido HTML del email</label>
                 <textarea class="form-textarea" id="campaignContent" placeholder="Pega aquí el código HTML de tu email..." required></textarea>
             </div>
@@ -84,6 +94,10 @@
                     <div style="color: var(--text-muted); font-size: 0.875rem;">Destinatarios</div>
                     <div id="summaryRecipients" style="font-weight: 600; color: var(--accent-secondary);"></div>
                 </div>
+                <div style="padding: 1rem; background: var(--bg-secondary); border-radius: 10px;">
+                    <div style="color: var(--text-muted); font-size: 0.875rem;">Remitente</div>
+                    <div id="summarySender" style="font-weight: 600;"></div>
+                </div>
             </div>
             
             <div class="form-group">
@@ -121,6 +135,31 @@ pedro@ejemplo.com,Pedro López</pre>
 <script>
     let campaignId = null;
     let recipientsCount = 0;
+    let senders = [];
+
+    // Cargar remitentes disponibles al cargar la página
+    async function loadSenders() {
+        try {
+            const response = await fetch('/api/senders');
+            if (response.ok) {
+                senders = await response.json();
+                const select = document.getElementById('campaignSender');
+                senders.forEach(sender => {
+                    const option = document.createElement('option');
+                    option.value = sender.id;
+                    option.setAttribute('data-email', sender.email);
+                    option.setAttribute('data-name', sender.name);
+                    option.textContent = `${sender.name} <${sender.email}>`;
+                    select.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error al cargar remitentes:', error);
+        }
+    }
+
+    // Cargar remitentes al iniciar
+    loadSenders();
 
     // File upload handling
     const dropZone = document.getElementById('dropZone');
@@ -178,11 +217,18 @@ pedro@ejemplo.com,Pedro López</pre>
         const name = document.getElementById('campaignName').value;
         const subject = document.getElementById('campaignSubject').value;
         const content = document.getElementById('campaignContent').value;
+        const senderSelect = document.getElementById('campaignSender');
+        const selectedSenderId = senderSelect.value;
 
-        if (!name || !subject || !content) {
+        if (!name || !subject || !content || !selectedSenderId) {
             showToast('Por favor completa todos los campos', 'error');
             return;
         }
+
+        // Obtener datos del remitente seleccionado
+        const selectedOption = senderSelect.options[senderSelect.selectedIndex];
+        const senderEmail = selectedOption.getAttribute('data-email');
+        const senderName = selectedOption.getAttribute('data-name');
 
         try {
             const response = await fetch('/api/campaigns', {
@@ -191,7 +237,9 @@ pedro@ejemplo.com,Pedro López</pre>
                 body: JSON.stringify({
                     name,
                     subject,
-                    html_content: content
+                    html_content: content,
+                    sender_email: senderEmail,
+                    sender_name: senderName
                 })
             });
 
@@ -234,6 +282,11 @@ pedro@ejemplo.com,Pedro López</pre>
                 document.getElementById('summaryName').textContent = document.getElementById('campaignName').value;
                 document.getElementById('summarySubject').textContent = document.getElementById('campaignSubject').value;
                 document.getElementById('summaryRecipients').textContent = `${data.count} destinatarios`;
+                
+                // Mostrar remitente seleccionado
+                const senderSelect = document.getElementById('campaignSender');
+                const selectedOption = senderSelect.options[senderSelect.selectedIndex];
+                document.getElementById('summarySender').textContent = selectedOption.textContent;
                 
                 // Update preview
                 const previewFrame = document.getElementById('previewFrame');
