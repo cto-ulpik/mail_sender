@@ -112,9 +112,31 @@ pedro@ejemplo.com,Pedro López
 
 El sistema detecta automáticamente diferentes variaciones de nombres de columnas.
 
+## 🔐 Autenticación
+
+La aplicación requiere autenticación para acceder. Las credenciales por defecto son:
+
+- **Email**: `cto@ulpik.com`
+- **Contraseña**: Configurada en el archivo `.env` con la variable `ADMIN_PASSWORD`
+
+Para cambiar las credenciales, edita el archivo `.env`:
+
+```env
+ADMIN_EMAIL=tu-email@dominio.com
+ADMIN_PASSWORD=tu-contraseña-segura
+```
+
+**Nota**: Las rutas de tracking (`/track/open/` y `/track/click/`) no requieren autenticación ya que son llamadas desde los emails enviados.
+
 ## 🎯 Uso
 
-### 1. Crear una campaña
+### 1. Iniciar sesión
+
+1. Accede a la aplicación
+2. Ingresa tus credenciales en la página de login
+3. Serás redirigido al dashboard
+
+### 2. Crear una campaña
 
 1. Accede a la aplicación en tu navegador
 2. Haz clic en "Nueva Campaña"
