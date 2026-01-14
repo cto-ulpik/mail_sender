@@ -46,9 +46,14 @@ class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
     BASE_URL = os.getenv('BASE_URL', 'https://mails.ulpik.com')
     
+    # Authentication
+    ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'cto@ulpik.com')
+    ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', "ViDH3<#2;vld5P'>Q6'>DE$z")
+    
     # Database
     SQLALCHEMY_DATABASE_URI = 'sqlite:///email_campaigns.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
 
 
 

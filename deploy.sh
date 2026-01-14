@@ -109,3 +109,4 @@ echo ""
 echo "4. Para crear un servicio systemd, ejecuta:"
 echo "   sudo nano /etc/systemd/system/mail-sender.service"
 echo "   (Ver README.md para la configuración del servicio)"
+

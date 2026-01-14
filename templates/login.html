@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Iniciar Sesión - SES Mailer{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: center; align-items: center; min-height: 60vh;">
+    <div class="card" style="max-width: 400px; width: 100%;">
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">🔐</div>
+            <h1 style="margin-bottom: 0.5rem;">Iniciar Sesión</h1>
+            <p style="color: var(--text-secondary);">Accede a tu panel de control</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="toast {{ category }}" style="margin-bottom: 1rem; position: relative; animation: none;">
+                        <span>{{ '✓' if category == 'success' else '✕' if category == 'error' else '⚠' }}</span>
+                        <span>{{ message }}</span>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('login') }}">
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input 
+                    type="email" 
+                    class="form-input" 
+                    name="email" 
+                    placeholder="tu-email@dominio.com" 
+                    required 
+                    autofocus
+                    autocomplete="email"
+                >
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Contraseña</label>
+                <input 
+                    type="password" 
+                    class="form-input" 
+                    name="password" 
+                    placeholder="••••••••" 
+                    required
+                    autocomplete="current-password"
+                >
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                🔓 Iniciar Sesión
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -212,3 +212,4 @@ sudo chmod -R 755 /var/www/html/mail_sender
 3. **Verifica los logs después de actualizar**: Asegúrate de que no hay errores.
 
 4. **El servicio se reinicia automáticamente** si falla (gracias a `Restart=always` en systemd).
+

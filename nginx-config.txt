@@ -29,3 +29,4 @@ server {
 # Para SSL con Let's Encrypt (cuando esté listo):
 # sudo apt-get install certbot python3-certbot-nginx
 # sudo certbot --nginx -d mails.ulpik.com
+

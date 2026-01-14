@@ -127,3 +127,4 @@ ls -l /var/www/html/mail_sender/instance/email_campaigns.db
 # Ver logs del servicio para más detalles
 sudo journalctl -u mail-sender -n 50
 ```
+

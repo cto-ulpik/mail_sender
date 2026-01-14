@@ -25,3 +25,4 @@ WantedBy=multi-user.target
 # sudo systemctl enable mail-sender
 # sudo systemctl start mail-sender
 # sudo systemctl status mail-sender
+

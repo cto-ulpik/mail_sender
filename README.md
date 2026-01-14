@@ -290,3 +290,4 @@ Las contribuciones son bienvenidas. Por favor:
 ## 📞 Soporte
 
 Para problemas o preguntas, abre un issue en el repositorio de GitHub.
+

@@ -229,3 +229,4 @@ sudo systemctl restart mail-sender
 # Ver logs
 sudo journalctl -u mail-sender -f
 ```
+

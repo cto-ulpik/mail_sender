@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, jsonify, redirect, Response
+from flask import Flask, render_template, request, jsonify, redirect, Response, url_for, flash
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user, UserMixin
 from models import db, Campaign, Recipient
 from config import Config
 from datetime import datetime
@@ -11,10 +12,30 @@ import re
 import time
 import threading
 from urllib.parse import quote, unquote
+from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
 app.config.from_object(Config)
 db.init_app(app)
+
+# Configurar Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Por favor inicia sesión para acceder a esta página.'
+login_manager.login_message_category = 'info'
+
+# Clase de usuario simple para autenticación
+class User(UserMixin):
+    def __init__(self, id):
+        self.id = id
+
+@login_manager.user_loader
+def load_user(user_id):
+    # Solo hay un usuario admin
+    if user_id == Config.ADMIN_EMAIL:
+        return User(user_id)
+    return None
 
 # Create tables
 with app.app_context():
@@ -156,21 +177,54 @@ def add_tracking(html_content, tracking_token):
     return html_content
 
 
+# ============ RUTAS DE AUTENTICACIÓN ============
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Página de login"""
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+        
+        # Verificar credenciales
+        if email == Config.ADMIN_EMAIL and password == Config.ADMIN_PASSWORD:
+            user = User(email)
+            login_user(user, remember=True)
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('index'))
+        else:
+            flash('Credenciales incorrectas. Por favor intenta de nuevo.', 'error')
+    
+    return render_template('login.html')
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    """Cerrar sesión"""
+    logout_user()
+    flash('Sesión cerrada exitosamente.', 'success')
+    return redirect(url_for('login'))
+
+
 # ============ RUTAS WEB ============
 
 @app.route('/')
+@login_required
 def index():
     """Página principal - Dashboard"""
     return render_template('index.html')
 
 
 @app.route('/campaign/new')
+@login_required
 def new_campaign():
     """Página para crear nueva campaña"""
     return render_template('new_campaign.html')
 
 
 @app.route('/campaign/<campaign_id>')
+@login_required
 def view_campaign(campaign_id):
     """Ver detalles de una campaña"""
     return render_template('campaign_detail.html', campaign_id=campaign_id)
@@ -179,6 +233,7 @@ def view_campaign(campaign_id):
 # ============ API ENDPOINTS ============
 
 @app.route('/api/senders', methods=['GET'])
+@login_required
 def get_senders():
     """Obtener lista de remitentes disponibles"""
     senders = Config.get_senders()
@@ -186,6 +241,7 @@ def get_senders():
 
 
 @app.route('/api/campaigns', methods=['GET'])
+@login_required
 def get_campaigns():
     """Obtener todas las campañas"""
     campaigns = Campaign.query.order_by(Campaign.created_at.desc()).all()
@@ -193,6 +249,7 @@ def get_campaigns():
 
 
 @app.route('/api/campaigns/<campaign_id>', methods=['GET'])
+@login_required
 def get_campaign(campaign_id):
     """Obtener una campaña específica"""
     campaign = Campaign.query.get_or_404(campaign_id)
@@ -200,6 +257,7 @@ def get_campaign(campaign_id):
 
 
 @app.route('/api/campaigns/<campaign_id>/recipients', methods=['GET'])
+@login_required
 def get_campaign_recipients(campaign_id):
     """Obtener recipients de una campaña"""
     campaign = Campaign.query.get_or_404(campaign_id)
@@ -207,6 +265,7 @@ def get_campaign_recipients(campaign_id):
 
 
 @app.route('/api/campaigns', methods=['POST'])
+@login_required
 def create_campaign():
     """Crear nueva campaña"""
     try:
@@ -248,6 +307,7 @@ def create_campaign():
 
 
 @app.route('/api/campaigns/<campaign_id>/recipients', methods=['POST'])
+@login_required
 def add_recipients(campaign_id):
     """Agregar recipients desde CSV"""
     campaign = Campaign.query.get_or_404(campaign_id)
@@ -373,6 +433,7 @@ def send_emails_background(campaign_id):
 
 
 @app.route('/api/campaigns/<campaign_id>/send', methods=['POST'])
+@login_required
 def send_campaign(campaign_id):
     """Iniciar envío de campaña en segundo plano"""
     campaign = Campaign.query.get_or_404(campaign_id)
@@ -406,6 +467,7 @@ def send_campaign(campaign_id):
 
 
 @app.route('/api/campaigns/<campaign_id>', methods=['DELETE'])
+@login_required
 def delete_campaign(campaign_id):
     """Eliminar una campaña"""
     campaign = Campaign.query.get_or_404(campaign_id)
@@ -473,6 +535,7 @@ def retry_emails_background(campaign_id):
 
 
 @app.route('/api/campaigns/<campaign_id>/retry', methods=['POST'])
+@login_required
 def retry_failed(campaign_id):
     """Reintentar envío a destinatarios fallidos"""
     campaign = Campaign.query.get_or_404(campaign_id)
@@ -503,6 +566,7 @@ def retry_failed(campaign_id):
 
 
 @app.route('/api/campaigns/<campaign_id>/stop', methods=['POST'])
+@login_required
 def stop_campaign(campaign_id):
     """Detener el envío de una campaña"""
     campaign = Campaign.query.get_or_404(campaign_id)
@@ -556,6 +620,7 @@ def track_click(tracking_token):
 # ============ ESTADÍSTICAS ============
 
 @app.route('/api/stats')
+@login_required
 def get_stats():
     """Obtener estadísticas generales"""
     total_campaigns = Campaign.query.count()
