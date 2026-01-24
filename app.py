@@ -320,36 +320,91 @@ def add_recipients(campaign_id):
         return jsonify({'error': 'Archivo vacío'}), 400
     
     try:
+        # Leer CSV con diferentes encodings
+        file_content = file.stream.read()
+        
+        # Intentar diferentes encodings
+        encodings = ['utf-8', 'utf-8-sig', 'latin-1', 'iso-8859-1', 'cp1252']
+        csv_content = None
+        
+        for encoding in encodings:
+            try:
+                csv_content = file_content.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        
+        if csv_content is None:
+            return jsonify({'error': 'No se pudo decodificar el archivo CSV. Por favor usa UTF-8.'}), 400
+        
         # Leer CSV
-        stream = io.StringIO(file.stream.read().decode('utf-8'))
+        stream = io.StringIO(csv_content)
         reader = csv.DictReader(stream)
         
+        # Verificar que el CSV tiene columnas
+        if not reader.fieldnames:
+            return jsonify({'error': 'El archivo CSV está vacío o no tiene encabezados'}), 400
+        
         added = 0
-        for row in reader:
-            # Detectar columna de email (varios formatos posibles)
-            email = (
-                row.get('email', '') or 
-                row.get('Email', '') or 
-                row.get('EMAIL', '') or
-                row.get('e-mail', '') or
-                row.get('E-mail', '') or
-                row.get('Otro e-mail', '') or
-                row.get('correo', '') or
-                row.get('Correo', '') or
-                ''
-            ).strip()
-            
-            # Detectar columna de nombre (varios formatos posibles)
-            name = (
-                row.get('name', '') or 
-                row.get('Name', '') or 
-                row.get('NAME', '') or
-                row.get('nombre', '') or
-                row.get('Nombre', '') or
-                ''
-            ).strip()
-            
-            if email and '@' in email:
+        skipped = 0
+        errors = []
+        
+        for row_num, row in enumerate(reader, start=2):  # Empezar en 2 porque la línea 1 es el header
+            try:
+                # Detectar columna de email (varios formatos posibles, case-insensitive)
+                email = None
+                for key in row.keys():
+                    if key and key.lower().strip() in ['email', 'e-mail', 'correo', 'mail']:
+                        email = row.get(key, '').strip()
+                        break
+                
+                # Si no se encontró, intentar con los nombres exactos
+                if not email:
+                    email = (
+                        row.get('email', '') or 
+                        row.get('Email', '') or 
+                        row.get('EMAIL', '') or
+                        row.get('e-mail', '') or
+                        row.get('E-mail', '') or
+                        row.get('Otro e-mail', '') or
+                        row.get('correo', '') or
+                        row.get('Correo', '') or
+                        ''
+                    ).strip()
+                
+                # Detectar columna de nombre (varios formatos posibles, case-insensitive)
+                name = None
+                for key in row.keys():
+                    if key and key.lower().strip() in ['name', 'nombre', 'nombre completo', 'full name']:
+                        name = row.get(key, '').strip()
+                        break
+                
+                # Si no se encontró, intentar con los nombres exactos
+                if not name:
+                    name = (
+                        row.get('name', '') or 
+                        row.get('Name', '') or 
+                        row.get('NAME', '') or
+                        row.get('nombre', '') or
+                        row.get('Nombre', '') or
+                        ''
+                    ).strip()
+                
+                # Validar email
+                if not email:
+                    skipped += 1
+                    continue
+                
+                if '@' not in email:
+                    skipped += 1
+                    continue
+                
+                # Validar formato básico de email
+                if email.count('@') != 1 or '.' not in email.split('@')[1]:
+                    skipped += 1
+                    continue
+                
+                # Crear recipient
                 recipient = Recipient(
                     campaign_id=campaign.id,
                     email=email,
@@ -357,12 +412,33 @@ def add_recipients(campaign_id):
                 )
                 db.session.add(recipient)
                 added += 1
+                
+            except Exception as e:
+                errors.append(f"Línea {row_num}: {str(e)}")
+                skipped += 1
+                continue
         
         db.session.commit()
-        return jsonify({'message': f'Se agregaron {added} destinatarios', 'count': added})
+        
+        response = {
+            'message': f'Se agregaron {added} destinatarios',
+            'count': added,
+            'skipped': skipped
+        }
+        
+        if errors and len(errors) <= 10:
+            response['errors'] = errors
+        elif errors:
+            response['errors'] = errors[:10]
+            response['error_count'] = len(errors)
+        
+        return jsonify(response)
     
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        db.session.rollback()
+        error_msg = str(e)
+        print(f"Error al procesar CSV: {error_msg}")
+        return jsonify({'error': f'Error al procesar el archivo CSV: {error_msg}'}), 400
 
 
 def send_emails_background(campaign_id):
