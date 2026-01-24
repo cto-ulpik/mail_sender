@@ -574,10 +574,16 @@ pedro@ejemplo.com,Pedro López</pre>
 
     async function uploadCSV() {
         const fileInput = document.getElementById('csvFile');
+        const uploadBtn = document.getElementById('uploadBtn');
+        
         if (!fileInput.files[0]) {
             showToast('Por favor selecciona un archivo', 'error');
             return;
         }
+
+        // Deshabilitar botón durante la carga
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = '⏳ Subiendo...';
 
         const formData = new FormData();
         formData.append('file', fileInput.files[0]);
@@ -588,16 +594,41 @@ pedro@ejemplo.com,Pedro López</pre>
                 body: formData
             });
 
-            const data = await response.json();
+            // Obtener texto de respuesta primero
+            const responseText = await response.text();
+            
+            let data = {};
+            try {
+                if (responseText.trim()) {
+                    data = JSON.parse(responseText);
+                }
+            } catch (parseError) {
+                console.error('Error al parsear respuesta:', parseError);
+                console.error('Respuesta recibida:', responseText.substring(0, 500));
+                showToast('Error al procesar la respuesta del servidor. Ver consola para más detalles.', 'error');
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Subir y continuar →';
+                return;
+            }
             
             if (response.ok) {
-                recipientsCount = data.count;
-                showToast(`${data.count} destinatarios agregados`, 'success');
+                recipientsCount = data.count || 0;
+                
+                if (recipientsCount === 0) {
+                    showToast('No se agregaron destinatarios. Verifica el formato del CSV.', 'warning');
+                } else {
+                    showToast(`${recipientsCount} destinatarios agregados${data.skipped ? ` (${data.skipped} omitidos)` : ''}`, 'success');
+                }
+                
+                // Mostrar errores si hay
+                if (data.errors && data.errors.length > 0) {
+                    console.warn('Errores al procesar CSV:', data.errors);
+                }
                 
                 // Update summary
                 document.getElementById('summaryName').textContent = document.getElementById('campaignName').value;
                 document.getElementById('summarySubject').textContent = document.getElementById('campaignSubject').value;
-                document.getElementById('summaryRecipients').textContent = `${data.count} destinatarios`;
+                document.getElementById('summaryRecipients').textContent = `${recipientsCount} destinatarios`;
                 
                 // Mostrar remitente seleccionado
                 const senderSelect = document.getElementById('campaignSender');
@@ -611,10 +642,21 @@ pedro@ejemplo.com,Pedro López</pre>
                 
                 goToStep(3);
             } else {
-                throw new Error(data.error || 'Error al subir archivo');
+                const errorMsg = data.error || data.message || `Error ${response.status}: ${response.statusText}`;
+                console.error('Error al subir CSV:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: data,
+                    responseText: responseText.substring(0, 500)
+                });
+                showToast(errorMsg, 'error');
             }
         } catch (error) {
-            showToast(error.message, 'error');
+            console.error('Error de red al subir CSV:', error);
+            showToast(`Error de conexión: ${error.message}`, 'error');
+        } finally {
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Subir y continuar →';
         }
     }
 

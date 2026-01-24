@@ -345,6 +345,9 @@ def add_recipients(campaign_id):
         if not reader.fieldnames:
             return jsonify({'error': 'El archivo CSV está vacío o no tiene encabezados'}), 400
         
+        # Debug: mostrar columnas detectadas
+        print(f"Columnas detectadas en CSV: {reader.fieldnames}")
+        
         added = 0
         skipped = 0
         errors = []
@@ -420,6 +423,8 @@ def add_recipients(campaign_id):
         
         db.session.commit()
         
+        print(f"CSV procesado: {added} agregados, {skipped} omitidos")
+        
         response = {
             'message': f'Se agregaron {added} destinatarios',
             'count': added,
@@ -431,6 +436,11 @@ def add_recipients(campaign_id):
         elif errors:
             response['errors'] = errors[:10]
             response['error_count'] = len(errors)
+        
+        # Si no se agregó ninguno, dar más información
+        if added == 0:
+            response['warning'] = 'No se agregaron destinatarios. Verifica que el CSV tenga la columna "email" y que los emails sean válidos.'
+            print(f"ADVERTENCIA: No se agregaron destinatarios. Columnas encontradas: {reader.fieldnames}")
         
         return jsonify(response)
     
