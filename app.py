@@ -345,8 +345,17 @@ def add_recipients(campaign_id):
         if not reader.fieldnames:
             return jsonify({'error': 'El archivo CSV está vacío o no tiene encabezados'}), 400
         
+        # Limpiar BOM de los nombres de columnas (problema común con Excel)
+        cleaned_fieldnames = []
+        fieldname_mapping = {}
+        for field in reader.fieldnames:
+            cleaned = field.strip().lstrip('\ufeff')  # Remover BOM y espacios
+            cleaned_fieldnames.append(cleaned)
+            fieldname_mapping[field] = cleaned
+        
         # Debug: mostrar columnas detectadas
         print(f"Columnas detectadas en CSV: {reader.fieldnames}")
+        print(f"Columnas limpiadas: {cleaned_fieldnames}")
         
         added = 0
         skipped = 0
@@ -354,42 +363,48 @@ def add_recipients(campaign_id):
         
         for row_num, row in enumerate(reader, start=2):  # Empezar en 2 porque la línea 1 es el header
             try:
+                # Limpiar BOM de las claves del row también
+                cleaned_row = {}
+                for key, value in row.items():
+                    cleaned_key = key.strip().lstrip('\ufeff')
+                    cleaned_row[cleaned_key] = value
+                
                 # Detectar columna de email (varios formatos posibles, case-insensitive)
                 email = None
-                for key in row.keys():
+                for key in cleaned_row.keys():
                     if key and key.lower().strip() in ['email', 'e-mail', 'correo', 'mail']:
-                        email = row.get(key, '').strip()
+                        email = cleaned_row.get(key, '').strip()
                         break
                 
                 # Si no se encontró, intentar con los nombres exactos
                 if not email:
                     email = (
-                        row.get('email', '') or 
-                        row.get('Email', '') or 
-                        row.get('EMAIL', '') or
-                        row.get('e-mail', '') or
-                        row.get('E-mail', '') or
-                        row.get('Otro e-mail', '') or
-                        row.get('correo', '') or
-                        row.get('Correo', '') or
+                        cleaned_row.get('email', '') or 
+                        cleaned_row.get('Email', '') or 
+                        cleaned_row.get('EMAIL', '') or
+                        cleaned_row.get('e-mail', '') or
+                        cleaned_row.get('E-mail', '') or
+                        cleaned_row.get('Otro e-mail', '') or
+                        cleaned_row.get('correo', '') or
+                        cleaned_row.get('Correo', '') or
                         ''
                     ).strip()
                 
                 # Detectar columna de nombre (varios formatos posibles, case-insensitive)
                 name = None
-                for key in row.keys():
+                for key in cleaned_row.keys():
                     if key and key.lower().strip() in ['name', 'nombre', 'nombre completo', 'full name']:
-                        name = row.get(key, '').strip()
+                        name = cleaned_row.get(key, '').strip()
                         break
                 
                 # Si no se encontró, intentar con los nombres exactos
                 if not name:
                     name = (
-                        row.get('name', '') or 
-                        row.get('Name', '') or 
-                        row.get('NAME', '') or
-                        row.get('nombre', '') or
-                        row.get('Nombre', '') or
+                        cleaned_row.get('name', '') or 
+                        cleaned_row.get('Name', '') or 
+                        cleaned_row.get('NAME', '') or
+                        cleaned_row.get('nombre', '') or
+                        cleaned_row.get('Nombre', '') or
                         ''
                     ).strip()
                 
