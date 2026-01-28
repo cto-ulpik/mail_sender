@@ -37,6 +37,11 @@ instance/
 *.sqlite
 *.sqlite3
 
+# Uploads
+uploads/
+*.xlsx
+*.xls
+
 # IDE
 .vscode/
 .idea/

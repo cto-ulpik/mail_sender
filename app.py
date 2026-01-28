@@ -11,12 +11,17 @@ import io
 import re
 import time
 import threading
+import os
 from urllib.parse import quote, unquote
 from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
 app.config.from_object(Config)
 db.init_app(app)
+
+# Crear directorio uploads si no existe
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Configurar Flask-Login
 login_manager = LoginManager()
