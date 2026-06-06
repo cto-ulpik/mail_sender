@@ -25,12 +25,20 @@
             </div>
             
             <div class="form-group">
-                <label class="form-label">Remitente</label>
+                <label class="form-label">Remitente (email)</label>
                 <select class="form-input" id="campaignSender" required>
                     <option value="">Selecciona un remitente...</option>
                 </select>
                 <small style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.5rem; display: block;">
-                    El email se enviará desde el remitente seleccionado
+                    Selecciona el email desde el que se enviará la campaña
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Nombre del remitente</label>
+                <input type="text" class="form-input" id="campaignSenderName" placeholder="Ej: Churchill de Ulpik" required>
+                <small style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.5rem; display: block;">
+                    Este nombre aparecerá como remitente en el email del destinatario. Puedes personalizarlo.
                 </small>
             </div>
             
@@ -353,10 +361,36 @@ pedro@ejemplo.com,Pedro López</pre>
         }
     }
 
+    function updateSenderNameFromSelect() {
+        const senderSelect = document.getElementById('campaignSender');
+        const senderNameInput = document.getElementById('campaignSenderName');
+        if (!senderSelect || !senderNameInput) return;
+
+        const selectedOption = senderSelect.options[senderSelect.selectedIndex];
+        const defaultName = selectedOption ? selectedOption.getAttribute('data-name') : '';
+        if (defaultName) {
+            senderNameInput.value = defaultName;
+        }
+    }
+
+    function getSenderDisplayText() {
+        const senderSelect = document.getElementById('campaignSender');
+        const senderNameInput = document.getElementById('campaignSenderName');
+        const selectedOption = senderSelect.options[senderSelect.selectedIndex];
+        const senderEmail = selectedOption ? selectedOption.getAttribute('data-email') : '';
+        const senderName = senderNameInput.value.trim();
+        return senderName && senderEmail ? `${senderName} <${senderEmail}>` : '';
+    }
+
     // Inicializar al cargar la página
     document.addEventListener('DOMContentLoaded', function() {
         initQuillEditor();
         loadSenders();
+
+        const senderSelect = document.getElementById('campaignSender');
+        if (senderSelect) {
+            senderSelect.addEventListener('change', updateSenderNameFromSelect);
+        }
     });
 
     // File upload handling
@@ -433,6 +467,13 @@ pedro@ejemplo.com,Pedro López</pre>
             return;
         }
 
+        const senderNameInput = document.getElementById('campaignSenderName');
+        const customSenderName = senderNameInput ? senderNameInput.value.trim() : '';
+        if (!customSenderName) {
+            showToast('Por favor ingresa el nombre del remitente', 'error');
+            return;
+        }
+
         // Validar contenido según el modo
         let content = '';
         if (currentEditorMode === 'visual') {
@@ -465,10 +506,10 @@ pedro@ejemplo.com,Pedro López</pre>
         // Obtener datos del remitente seleccionado
         const selectedOption = senderSelect.options[senderSelect.selectedIndex];
         const senderEmail = selectedOption.getAttribute('data-email');
-        const senderName = selectedOption.getAttribute('data-name');
+        const senderName = customSenderName;
 
-        if (!senderEmail || !senderName) {
-            showToast('Error al obtener datos del remitente', 'error');
+        if (!senderEmail) {
+            showToast('Error al obtener el email del remitente', 'error');
             return;
         }
 
@@ -631,9 +672,7 @@ pedro@ejemplo.com,Pedro López</pre>
                 document.getElementById('summaryRecipients').textContent = `${recipientsCount} destinatarios`;
                 
                 // Mostrar remitente seleccionado
-                const senderSelect = document.getElementById('campaignSender');
-                const selectedOption = senderSelect.options[senderSelect.selectedIndex];
-                document.getElementById('summarySender').textContent = selectedOption.textContent;
+                document.getElementById('summarySender').textContent = getSenderDisplayText();
                 
                 // Update preview
                 const previewFrame = document.getElementById('previewFrame');
