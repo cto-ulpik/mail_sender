@@ -92,7 +92,7 @@
                         Arrastra tu archivo CSV aquí o <strong>haz clic para seleccionar</strong>
                     </p>
                     <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.5rem;">
-                        El CSV debe tener columnas: email, name (opcional)
+                        El CSV debe tener columnas: email, name (opcional). Separador: coma (,) o punto y coma (;)
                     </p>
                     <input type="file" id="csvFile" accept=".csv" style="display: none;">
                 </div>
@@ -159,11 +159,14 @@
 <!-- Example CSV Card -->
 <div class="card" style="margin-top: 1.5rem;">
     <h3 style="margin-bottom: 1rem;">📝 Formato del CSV</h3>
-    <p style="color: var(--text-secondary); margin-bottom: 1rem;">Tu archivo CSV debe tener el siguiente formato:</p>
+    <p style="color: var(--text-secondary); margin-bottom: 1rem;">Tu archivo CSV debe tener el siguiente formato (coma o punto y coma como separador):</p>
     <pre style="background: var(--bg-secondary); padding: 1rem; border-radius: 10px; overflow-x: auto; color: var(--text-primary);">email,name
 juan@ejemplo.com,Juan Pérez
 maria@ejemplo.com,María García
-pedro@ejemplo.com,Pedro López</pre>
+
+email;name
+juan@ejemplo.com;Juan Pérez
+maria@ejemplo.com;María García</pre>
 </div>
 {% endblock %}
 

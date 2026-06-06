@@ -311,6 +311,23 @@ def create_campaign():
         return jsonify({'error': f'Error al crear la campaña: {error_msg}'}), 500
 
 
+def detect_csv_delimiter(csv_content):
+    """Detecta el separador del CSV: coma (,) o punto y coma (;)."""
+    try:
+        dialect = csv.Sniffer().sniff(csv_content[:8192], delimiters=',;')
+        return dialect.delimiter
+    except csv.Error:
+        pass
+
+    first_line = next((line for line in csv_content.splitlines() if line.strip()), '')
+    if not first_line:
+        return ','
+
+    if first_line.count(';') > first_line.count(','):
+        return ';'
+    return ','
+
+
 @app.route('/api/campaigns/<campaign_id>/recipients', methods=['POST'])
 @login_required
 def add_recipients(campaign_id):
@@ -342,9 +359,10 @@ def add_recipients(campaign_id):
         if csv_content is None:
             return jsonify({'error': 'No se pudo decodificar el archivo CSV. Por favor usa UTF-8.'}), 400
         
-        # Leer CSV
+        # Leer CSV (soporta separador , o ;)
+        delimiter = detect_csv_delimiter(csv_content)
         stream = io.StringIO(csv_content)
-        reader = csv.DictReader(stream)
+        reader = csv.DictReader(stream, delimiter=delimiter)
         
         # Verificar que el CSV tiene columnas
         if not reader.fieldnames:
@@ -359,6 +377,7 @@ def add_recipients(campaign_id):
             fieldname_mapping[field] = cleaned
         
         # Debug: mostrar columnas detectadas
+        print(f"Separador CSV detectado: '{delimiter}'")
         print(f"Columnas detectadas en CSV: {reader.fieldnames}")
         print(f"Columnas limpiadas: {cleaned_fieldnames}")
         
